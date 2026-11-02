@@ -17,6 +17,10 @@ Requires Node 22.13+ and npm. Run `npm run dev` and open the printed URL, then `
 - Adviser GWA and CID overview of the personal dataset, plus meeting presentation mode.
 - Reviewed mailto drafts; sending occurs in the user's mail app. No email service is configured.
 
+## Individual student performance
+
+Click student names in class records, rosters, quarter summaries, follow-up lists, adviser tables, CID views, or the grading-sheet preview to open a student profile. Profiles show all locally enrolled subjects, four-quarter results, current-quarter GWA, component weights and contributions, and every assignment with score, due date, and submission status. Missing submissions, submitted-but-unmarked work, not-yet-due outputs, and raw scores below 60% are distinguished. These flags are review indicators rather than scholarship decisions. Intervention notes, call slips, email drafts, and a printable individual report are available from the profile. The quarter selector changes the report period. These views still use only the personal workspace dataset.
+
 ## Quarterly grading sheets
 
 Open **Grading sheet**, select the class and quarter, and enter the adviser and signatory names. Download PDF, Excel, or both. Legal portrait is the default; A4 portrait and landscape are available. PDFs include blank signature spaces for signing after download. Names from the old reference forms are not assumed to be current signatories.
