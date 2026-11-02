@@ -1,3 +1,9 @@
+let activePass=null;
+export function withGradeCache(db,fn){
+ const previous=activePass,assignments=new Map();
+ for(const a of db.assignments){const key=JSON.stringify([a.classId,a.quarter,a.category]);if(!assignments.has(key))assignments.set(key,[]);assignments.get(key).push(a);}
+ activePass={db,assignments,grades:new Map()};try{return fn();}finally{activePass=previous;}
+}
 export const SCALE = [[96,1],[90,1.25],[84,1.5],[78,1.75],[72,2],[66,2.25],[60,2.5],[55,2.75],[50,3],[40,4],[0,5]];
 export function equivalent(percent,base=0) { const scale=base===50?[[98,1],[95,1.25],[92,1.5],[89,1.75],[86,2],[83,2.25],[80,2.5],[77,2.75],[74,3],[70,4],[0,5]]:SCALE; return scale.find(([min])=>percent>min-.01)?.[1] ?? null; }
 export function transmute(value) { return [[1.13,1],[1.38,1.25],[1.63,1.5],[1.88,1.75],[2.13,2],[2.38,2.25],[2.63,2.5],[2.88,2.75],[3.5,3],[4.5,4],[5,5]].find(([max])=>value<=max)?.[1]??5; }
@@ -6,7 +12,7 @@ export function componentResults(db,c,student,q) {
  const base=c.quarterBases?.[q]??c.base;
  return weightsFor(c,q).filter(category=>category.weight>0).map(category=>{
   let complete=true;
-  const assignments=db.assignments.filter(a=>a.classId===c.id&&a.quarter===q&&a.category===category.name);
+  const assignments=activePass?.db===db?(activePass.assignments.get(JSON.stringify([c.id,q,category.name]))||[]):db.assignments.filter(a=>a.classId===c.id&&a.quarter===q&&a.category===category.name);
   let points=0,total=0,ratios=0,count=0,marked=0;
   for(const a of assignments){const r=db.scores[a.id]?.[student];if(r?.status==='excused')continue;total+=a.points;count++;if(r?.score!=null){points+=r.score;ratios+=r.score/a.points;marked++;}else complete=false;}
   if(!total)return {...category,percent:null,weighted:null,complete:false};
@@ -22,6 +28,10 @@ export function tentative(db,c,student,q) {
  return {percent:covered?percent:null,grade:covered?equivalent(percent,base):null,complete:complete&&Math.abs(covered-100)<.001};
 }
 export function grade(db,c,student,q) {
+ if(activePass?.db!==db)return calculateGrade(db,c,student,q);
+ const key=JSON.stringify([c.id,student,q]);if(!activePass.grades.has(key))activePass.grades.set(key,calculateGrade(db,c,student,q));return activePass.grades.get(key);
+}
+function calculateGrade(db,c,student,q) {
  const t=tentative(db,c,student,q);if(t.grade==null)return {...t,final:null,reason:'No assessment data'};
  if(!t.complete)return {...t,final:null,reason:'Incomplete scores or categories'};
  if(q===1||c.method==='independent')return {...t,final:t.grade,reason:''};

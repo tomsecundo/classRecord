@@ -58,3 +58,13 @@ No claim of school-wide production readiness or external security audit is made.
 ## Third-party software
 
 The browser CSV/XLSX parser is SheetJS Community Edition 0.20.3, downloaded from its official distribution; its license notice is retained in `public/xlsx.full.min.js`. The server uses the Sites Vinext starter and preserves its deployment/auth integration.
+
+## Full-school simulation and capacity check
+
+Open `/index.html?demo=school` or **Settings → Open school demo**. The temporary simulation bypasses vault loading and does not save its edits. Reloading resets synthetic data. Settings includes a selector for 70 simulated teachers; these are fixture labels, not authenticated accounts. Subject names, schedules, and weights are illustrative rather than an official curriculum or timetable.
+
+Assumptions: grades 7–12, 120 students per grade, four sections of 30, 12 subjects per section, four quarters, and 12 assignments per subject per quarter. This produces 720 students, 24 sections, 288 subject classes, 13,824 assignments, 414,720 score/status records, and 8,640 student-subject results per quarter. The data includes high/low scores, missing submissions, late submissions, excused work, and work awaiting marking.
+
+Run `node scripts/benchmarks/school-capacity.mjs`. A local Node run on 2026-11-02 generated the fixture in 41 ms, calculated all 8,640 Q2 results in 40 ms, and assembled a 12-subject student profile in 4 ms. These are single-run computation measurements, excluding DOM rendering, encryption, networking, and concurrent users. Render-scoped assessment indexes and grade memoization avoid rescanning all assignments for every grade; caches are discarded after each render so edits remain current. Browser verification covered the full CID overview, a 12-subject profile, section filtering, and switching to simulated teacher 70.
+
+The fixture serializes to 22,861,489 bytes (about 22.9 MB); its estimated encrypted/base64 payload is 30,482,008 bytes before envelope overhead, exceeding the current 4,000,000-byte sync limit. This validates an in-memory dataset, not whole-school persistence or 70-user concurrency. Production school-wide operation still requires staff authorization, a shared subject/grade store, incremental sync instead of whole-school snapshots, and concurrent/offline conflict tests. A teacher's scoped dataset is much smaller, but shared adviser/CID access is not implemented by this fixture.
