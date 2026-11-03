@@ -9,3 +9,5 @@
 .grading-key>div>div{display:flex;justify-content:space-around;gap:8px}
 
 .student-link{border:0;background:none;padding:0;color:#215c49;text-decoration:underline;text-underline-offset:3px;font:inherit;font-weight:600;text-align:left;cursor:pointer}.student-link:hover{color:#113a2b}.student-link:focus-visible{outline:2px solid #215c49;outline-offset:4px}.profile-subject{margin-top:24px}.profile-subject .table-wrap{margin-top:14px}.profile-report>h2{margin:24px 0 12px}.profile-note{white-space:pre-wrap}
+
+.sheet-incomplete{font-size:11px;line-height:1.6;margin:14px 0;padding:12px;background:#fff8ed;border:1px solid #e8d6b8}.sheet-incomplete ul{padding-left:20px}.sheet-incomplete p{margin-top:8px}
