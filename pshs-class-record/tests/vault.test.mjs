@@ -1,28 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-// In-memory IndexedDB adapter; crypto uses Node's real Web Crypto implementation.
-let local=null,cloud=null,revision=0,online=false;
-globalThis.addEventListener=()=>{};
-Object.defineProperty(globalThis,'navigator',{value:{get onLine(){return online;},storage:{persist:async()=>true},locks:{request:async(_name,fn)=>fn()}},configurable:true});
-globalThis.indexedDB={open(){const req={};queueMicrotask(()=>{req.result={createObjectStore(){},close(){},transaction(){const tx={objectStore(){return {get(){const r={};queueMicrotask(()=>{r.result=structuredClone(local);r.onsuccess?.();tx.oncomplete?.();});return r;},put(value){local=structuredClone(value);queueMicrotask(()=>tx.oncomplete?.());}};}};return tx;}};req.onsuccess?.();});return req;}};
-const realSetInterval=globalThis.setInterval;globalThis.setInterval=(...args)=>{const id=realSetInterval(...args);id.unref();return id;};
-globalThis.fetch=async(_url,opts={})=>{if(!online)throw Error('Offline');if(!opts.method)return Response.json({owner:'test-owner',email:'test@example.com',revision,payload:cloud});const body=JSON.parse(opts.body);if(body.revision!==revision)return Response.json({}, {status:409});cloud=body.payload;return Response.json({owner:'test-owner',revision:++revision});};
-const vault=await import('../public/store.js');
-const data={version:1,classes:[],students:[{id:'s',name:'Confidential test name'}],assignments:[],scores:{}};
-const wait=async(fn)=>{for(let i=0;i<100;i++){if(fn())return;await new Promise(r=>setTimeout(r,10));}throw Error('Timed out');};
-test('encrypted offline save, wrong-passphrase rejection, automatic upload and conflict preservation',async()=>{
- assert.equal(await vault.inspectVault(),null);
- await vault.enable(data,'a-test-passphrase-only');
- assert.ok(local.payload.ciphertext);assert.ok(!JSON.stringify(local).includes('Confidential test name'));assert.equal(local.pending,true);
- const firstIv=local.payload.iv;
- await vault.save({...data,year:'2026–2027'});assert.notEqual(local.payload.iv,firstIv);
- await assert.rejects(vault.unlock('incorrect-passphrase'));
- const restored=await vault.unlock('a-test-passphrase-only');assert.equal(restored.students[0].name,'Confidential test name');assert.equal(restored.year,'2026–2027');
- online=true;await vault.sync();await wait(()=>local.revision===1);assert.equal(local.pending,false);assert.equal(cloud.ciphertext,local.payload.ciphertext);
- online=false;await vault.save({...data,year:'offline-edit'});const pending=local.payload.ciphertext;
- revision=2;online=true;await vault.sync();assert.match(vault.status,/conflict/i);assert.equal(local.payload.ciphertext,pending);assert.equal(local.pending,true);
- const backup=JSON.parse(await vault.encryptedBackup());assert.equal(backup.payload.ciphertext,pending);
- // Wrong cloud passphrase must not poison the existing local encryption key.
- await assert.rejects(vault.cloudVersion('incorrect-passphrase'));online=false;
- await vault.save({...data,year:'still-local'});const final=await vault.unlock('a-test-passphrase-only');assert.equal(final.year,'still-local');
+const events={};globalThis.addEventListener=(name,fn)=>events[name]=fn;
+let revision=0,cloud=null,fail=false,conflict=false,writes=0;
+globalThis.fetch=async(_url,options={})=>{
+ if(fail)throw Error('Connection lost');
+ if(!options.method)return Response.json({revision,data:cloud});
+ writes++;const body=JSON.parse(options.body);
+ if(conflict||body.revision!==revision)return Response.json({error:'Changed in another tab'},{status:409});
+ cloud=body.data;return Response.json({revision:++revision});
+};
+const store=await import('../public/store.js');
+test('online saves serialize revisions, report failures, and never retry or persist offline',async()=>{
+ const data={version:1,students:[],classes:[],assignments:[],scores:{}};
+ assert.equal(await store.load(),null);
+ await Promise.all([store.save({...data,teacher:'First'}),store.save({...data,teacher:'Second'})]);
+ assert.equal(revision,2);assert.equal(cloud.teacher,'Second');assert.equal(store.status,'Saved online');assert.equal(store.hasUnsavedChanges(),false);
+ fail=true;await assert.rejects(store.save(data),/Connection lost/);assert.equal(store.hasUnsavedChanges(),true);assert.match(store.status,/NOT SAVED/);
+ let prevented=false;events.beforeunload({preventDefault(){prevented=true;}});assert.equal(prevented,true);
+ fail=false;const before=writes;events.online();assert.equal(writes,before);await assert.rejects(store.save(data),/not saved/);assert.equal(writes,before);
+ await store.load();conflict=true;await assert.rejects(store.save(data),/Changed in another tab/);assert.equal(store.hasUnsavedChanges(),true);
 });

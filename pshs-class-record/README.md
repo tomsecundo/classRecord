@@ -1,6 +1,6 @@
 # Pisay Class Record — PSHS Bicol Region Campus
 
-An offline-first teacher workspace built from the supplied Bicol E-Grades and adviser-monitoring references. The initial screen uses fictional student records. No student data from the reference workbooks is embedded or uploaded.
+An online-only teacher workspace built from the supplied Bicol E-Grades and adviser-monitoring references. Sign in to open your online workspace. The separate school simulation uses fictional records. No student data from the reference workbooks is embedded or uploaded.
 
 ## Running locally
 
@@ -25,17 +25,15 @@ Click student names in class records, rosters, quarter summaries, follow-up list
 
 Open **Grading sheet**, select the class and quarter, and enter the adviser and signatory names. Download PDF, Excel, or both. Legal portrait is the default; A4 portrait and landscape are available. PDFs include blank signature spaces for signing after download. Names from the old reference forms are not assumed to be current signatories.
 
-The report includes component percentages and weights, present/previous/final grades, school branding, and teacher, Unit Head, and CID Chief blocks. Optional roster groups can be entered on student profiles or imported from a Sex column. Unknown groups remain unspecified. Incomplete grades and demonstration records produce a DRAFT sheet. Excel includes formulas and cached results; component values are snapshots, so update the class record and export again after score changes. Export libraries and logos are cached for offline use.
+The report includes component percentages and weights, present/previous/final grades, school branding, and teacher, Unit Head, and CID Chief blocks. Optional roster groups can be entered on student profiles or imported from a Sex column. Unknown groups remain unspecified. Incomplete grades and demonstration records produce a DRAFT sheet. Excel includes formulas and cached results; component values are snapshots, so update the class record and export again after score changes. An internet connection is required.
 
-## Offline storage and synchronization
+## Online storage
 
-Select **Set up secure storage**. Use a passphrase of at least 12 characters. The default creates an empty workspace; uncheck that option to keep the fictional demonstration records. An existing cloud vault is restored instead when the signed-in account already has one and the passphrase matches.
+The app loads and saves through authenticated `/api/workspace` requests. There is no new IndexedDB database, passphrase, background synchronization, or offline editing. Prior offline caches are retired. Existing legacy encrypted databases and server vaults are retained, but are not automatically migrated; the legacy write endpoint returns 410.
 
-The app shell, including the Excel parser, is cached by a service worker. After one successful online load, it can reopen offline. Install/add the app to the home screen where the browser supports it. Offline font fallback uses system fonts.
+Server saves use revision guards and a transactional D1 batch. JSON is split into 128,000-character database rows to avoid putting a full school snapshot in one database value. Requests have a 40 MB limit. This remains a whole-workspace save, not incremental multi-user editing. A failed save is clearly marked NOT SAVED; further editing is blocked until reload, and closing the page warns about unsaved changes. Concurrent stale revisions are rejected rather than overwriting newer data. Records now exist as JSON on the server, not end-to-end encrypted vaults. Account authentication and same-origin write checks remain in place.
 
-Records are AES-256-GCM encrypted in IndexedDB. A 600,000-iteration PBKDF2-SHA256 key is derived from the passphrase with a random 128-bit salt. Every save uses a fresh 96-bit IV. The key is non-extractable and remains only in memory. There is an explicit lock and a 15-minute inactivity lock. Browser storage persistence is requested where available; download encrypted backups because browsers can still clear data. Lost passphrases cannot be recovered.
-
-Encrypted snapshots are synchronized to the authenticated account's D1 row. Identity and same-origin checks protect writes. The server never receives the passphrase or plaintext grades. It performs compare-and-swap writes by revision. Reconnection and a 30-second timer trigger sync while the app is open. Clean devices pull newer versions automatically. Concurrent changes pause sync, requiring a local encrypted backup and explicit cloud-version restore; automatic per-record merging is not implemented. Sync does not run while the browser/app is closed. A 4 MB encrypted snapshot limit is enforced.
+Apply the SQL migrations in `drizzle/` before running this version. The school simulation at `/index.html?demo=school` is stored under a separate account-scoped namespace, leaving the real workspace untouched. It seeds the full fictional dataset on first authenticated opening and reopens the saved simulation thereafter. This is not a 70-account concurrency test.
 
 ## Grading implementation
 
@@ -51,7 +49,7 @@ The app intentionally withholds final grades when required scores/categories or 
 
 ## Remaining production integration
 
-This is a private personal-workspace pilot. The teacher/adviser/CID selector changes views of the same dataset, not authorization. School-wide staff membership, server-enforced teacher/adviser/CID permissions, cross-account grade publication, and shared adviser summaries require a school data-sharing model and a separate access-controlled aggregate store. The current per-account encrypted vault intentionally cannot read other staff accounts. Official database integration and an email delivery provider are not configured. These are visible limitations in the app, not simulated connections.
+This is a private personal-workspace pilot. The teacher/adviser/CID selector changes views of the same dataset, not authorization. School-wide staff membership, server-enforced teacher/adviser/CID permissions, cross-account grade publication, and shared adviser summaries require a school data-sharing model and a separate access-controlled aggregate store. The current account-scoped workspace cannot read other staff accounts. Official database integration and an email delivery provider are not configured. These are visible limitations in the app, not simulated connections.
 
 No claim of school-wide production readiness or external security audit is made. Never publish the sample source workbooks or real student data into the app's source/public directory.
 
@@ -61,10 +59,10 @@ The browser CSV/XLSX parser is SheetJS Community Edition 0.20.3, downloaded from
 
 ## Full-school simulation and capacity check
 
-Open `/index.html?demo=school` or **Settings → Open school demo**. The temporary simulation bypasses vault loading and does not save its edits. Reloading resets synthetic data. Settings includes a selector for 70 simulated teachers; these are fixture labels, not authenticated accounts. Subject names, schedules, and weights are illustrative rather than an official curriculum or timetable.
+Open `/index.html?demo=school` or **Settings → Open school demo**. The simulation saves online in its own account-scoped namespace; reloading reopens saved simulation data. Settings includes a selector for 70 simulated teachers; these are fixture labels, not authenticated accounts. Subject names, schedules, and weights are illustrative rather than an official curriculum or timetable.
 
 Assumptions: grades 7–12, 120 students per grade, four sections of 30, 12 subjects per section, four quarters, and 12 assignments per subject per quarter. This produces 720 students, 24 sections, 288 subject classes, 13,824 assignments, 414,720 score/status records, and 8,640 student-subject results per quarter. The data includes high/low scores, missing submissions, late submissions, excused work, and work awaiting marking.
 
 Run `node scripts/benchmarks/school-capacity.mjs`. A local Node run on 2026-11-02 generated the fixture in 41 ms, calculated all 8,640 Q2 results in 40 ms, and assembled a 12-subject student profile in 4 ms. These are single-run computation measurements, excluding DOM rendering, encryption, networking, and concurrent users. Render-scoped assessment indexes and grade memoization avoid rescanning all assignments for every grade; caches are discarded after each render so edits remain current. Browser verification covered the full CID overview, a 12-subject profile, section filtering, and switching to simulated teacher 70.
 
-The fixture serializes to 22,861,489 bytes (about 22.9 MB); its estimated encrypted/base64 payload is 30,482,008 bytes before envelope overhead, exceeding the current 4,000,000-byte sync limit. This validates an in-memory dataset, not whole-school persistence or 70-user concurrency. Production school-wide operation still requires staff authorization, a shared subject/grade store, incremental sync instead of whole-school snapshots, and concurrent/offline conflict tests. A teacher's scoped dataset is much smaller, but shared adviser/CID access is not implemented by this fixture.
+The fixture serializes to 22,861,489 bytes (about 22.9 MB); its estimated encrypted/base64 payload is 30,482,008 bytes before envelope overhead, exceeding the former 4,000,000-byte encrypted sync limit. The online-only path now accepts up to 40 MB and splits storage across database rows. The online-only update also saved and reopened this complete dataset in the local server database, including an intervention-note edit. This does not establish hosted production capacity or 70-user concurrency. Production school-wide operation still requires staff authorization, a shared subject/grade store, incremental sync instead of whole-school snapshots, and concurrent-user load tests. A teacher's scoped dataset is much smaller, but shared adviser/CID access is not implemented by this fixture.

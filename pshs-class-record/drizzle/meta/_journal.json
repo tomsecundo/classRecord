@@ -8,6 +8,13 @@
       "when": 1792973380626,
       "tag": "0000_majestic_earthquake",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793627484601,
+      "tag": "0001_peaceful_madame_masque",
+      "breakpoints": true
     }
   ]
 }
